@@ -135,13 +135,12 @@ export default function Home() {
           ...prev.filter((b) => b.id !== data.bookmark.id && b.url !== data.bookmark.url),
         ]);
       }
-      setRegisterSuccess(`「${data.bookmark.title}」を登録しました！`);
+      setRegisterSuccess(`「${data.bookmark.title}」を解析・追加しました！（※デモ環境のためリロードで元に戻ります）`);
       setNewUrl('');
 
       // 検索中の場合はクリアして最新リストを表示
       setSearchResults(null);
       setActiveQuery('');
-      await fetchBookmarks();
     } catch (err: unknown) {
       setRegisterError(err instanceof Error ? err.message : '予期せぬエラーが発生しました。');
     } finally {
@@ -336,10 +335,13 @@ export default function Home() {
         {/* ヘッダー: コンパクト化 ＆ 新規登録トグルボタン */}
         <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200/80 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold tracking-wide uppercase">
                 <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                 Gemini 2.5 Flash & Jina Reader
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200/80 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold tracking-wide">
+                お試しデモ稼働中（サンドボックス仕様）
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-700 dark:from-white dark:via-indigo-200 dark:to-indigo-400 bg-clip-text text-transparent">
@@ -366,10 +368,10 @@ export default function Home() {
               onClick={() => fetchBookmarks()}
               disabled={isLoadingList}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-xs disabled:opacity-50"
-              title="一覧を再読み込み"
+              title="初期一覧にリセット"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingList ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">更新</span>
+              <span className="hidden sm:inline">リセット</span>
             </button>
           </div>
         </header>
@@ -390,7 +392,7 @@ export default function Home() {
               </button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-              WebページのコンテンツをJina Readerで取得し、Gemini 2.5 Flashがタイトル・概要・商用利用規約・タグ・用途を自動抽出して保存します。
+              WebページのコンテンツをJina Readerで取得し、Gemini 2.5 Flashがタイトル・概要・商用利用規約・タグ・用途をリアルタイム抽出してカード化します。（※お試しデモ環境のため、リロードで初期状態に戻ります）
             </p>
 
             <form onSubmit={handleRegister} className="flex flex-col sm:flex-row gap-2.5">
@@ -460,16 +462,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* 環境変数ガイダンスバナー */}
-        {!isConfigured && (
-          <div className="mb-6 p-4 rounded-xl bg-amber-50/90 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold mb-1">Supabase または Gemini API の初期設定が必要です</p>
-              <p><code className="font-mono bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">.env.local</code> を確認してください。</p>
-            </div>
-          </div>
-        )}
 
         {/* 2カラム構成レイアウト: 左 75% (メイン) + 右 25% (サイドバー) */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">

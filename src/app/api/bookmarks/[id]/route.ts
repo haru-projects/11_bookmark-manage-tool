@@ -12,10 +12,8 @@ export async function DELETE(
     }
 
     if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: 'Supabaseが設定されていません。' },
-        { status: 500 }
-      );
+      // 公開デモモード: DB未接続でもフロントエンドのステート削除を成功扱いにする
+      return NextResponse.json({ success: true, message: '削除しました（デモモード）。' });
     }
 
     const supabase = getSupabaseClient();
@@ -48,18 +46,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'IDが指定されていません。' }, { status: 400 });
     }
 
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: 'Supabaseが設定されていません。' },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json().catch(() => ({}));
     const { category } = body;
 
     if (!category || typeof category !== 'string') {
       return NextResponse.json({ error: '有効なカテゴリを指定してください。' }, { status: 400 });
+    }
+
+    if (!isSupabaseConfigured()) {
+      // 公開デモモード: DB未接続でもフロントエンドのステート更新を成功扱いにする
+      return NextResponse.json({ success: true, message: '更新しました（デモモード）。' });
     }
 
     const supabase = getSupabaseClient();

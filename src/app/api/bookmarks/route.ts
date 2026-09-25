@@ -4,19 +4,18 @@ import { fetchMarkdownWithJina } from '@/lib/jina';
 import { analyzeWebContent, isGeminiConfigured } from '@/lib/gemini';
 import { Bookmark } from '@/types/bookmark';
 import { unwrapRedirectUrl } from '@/lib/urlHelper';
+import { INITIAL_BOOKMARKS } from '@/lib/initialBookmarks';
 
 // GET: 保存済みブックマーク一覧取得
 export async function GET() {
   try {
+    // Supabaseが未設定の場合は、高品質な初期サンプルブックマーク（15件）を返却
     if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        {
-          error: 'Supabaseが設定されていません。.env.local に NEXT_PUBLIC_SUPABASE_URL と NEXT_PUBLIC_SUPABASE_ANON_KEY を設定してください。',
-          bookmarks: [],
-          configured: false,
-        },
-        { status: 200 }
-      );
+      return NextResponse.json({
+        bookmarks: INITIAL_BOOKMARKS,
+        configured: false,
+        demoMode: true,
+      });
     }
 
     const supabase = getSupabaseClient();
@@ -26,23 +25,26 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Supabase fetch error:', error);
-      return NextResponse.json(
-        { error: `データ取得に失敗しました: ${error.message}`, bookmarks: [] },
-        { status: 500 }
-      );
+      console.error('Supabase fetch error, fallback to initial bookmarks:', error);
+      return NextResponse.json({
+        bookmarks: INITIAL_BOOKMARKS,
+        configured: false,
+        demoMode: true,
+      });
     }
 
     return NextResponse.json({
-      bookmarks: (data as Bookmark[]) || [],
+      bookmarks: (data as Bookmark[]) || INITIAL_BOOKMARKS,
       configured: true,
+      demoMode: false,
     });
   } catch (error: unknown) {
     console.error('Unexpected error in GET /api/bookmarks:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '予期せぬエラーが発生しました' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      bookmarks: INITIAL_BOOKMARKS,
+      configured: false,
+      demoMode: true,
+    });
   }
 }
 
@@ -77,16 +79,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 環境変数チェック
+    // 環境変数チェック (Geminiは必須)
     if (!isGeminiConfigured()) {
       return NextResponse.json(
-        { error: 'GEMINI_API_KEY が設定されていません。.env.local に設定してください。' },
-        { status: 500 }
-      );
-    }
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: 'Supabase接続情報が設定されていません。.env.local に設定してください。' },
+        { error: 'GEMINI_API_KEY が設定されていません。' },
         { status: 500 }
       );
     }
@@ -103,7 +99,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Gemini 2.5 Flash Structured Outputsでメタデータ抽出
+    // 2. Gemini 2.5 Flash Structured Outputsでメタデータ抽出（本物のAI解析）
     let analysis;
     try {
       analysis = await analyzeWebContent(markdownContent, cleanUrl);
@@ -115,38 +111,56 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Supabase bookmarks テーブルに保存（upsert）
-    const supabase = getSupabaseClient();
+    // 3. Supabaseが設定されていればDB保存、未設定ならメモリ用オブジェクトを返却（サンドボックスモード）
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error: dbError } = await supabase
+          .from('bookmarks')
+          .upsert(
+            {
+              url: cleanUrl,
+              title: analysis.title,
+              summary: analysis.summary,
+              category: analysis.category,
+              tags: analysis.tags || [],
+              use_cases: analysis.useCases || [],
+              commercial_use: analysis.commercialUse,
+              raw_content: markdownContent.slice(0, 10000),
+            },
+            { onConflict: 'url' }
+          )
+          .select()
+          .single();
 
-    const { data, error: dbError } = await supabase
-      .from('bookmarks')
-      .upsert(
-        {
-          url: cleanUrl,
-          title: analysis.title,
-          summary: analysis.summary,
-          category: analysis.category,
-          tags: analysis.tags || [],
-          use_cases: analysis.useCases || [],
-          commercial_use: analysis.commercialUse,
-          raw_content: markdownContent.slice(0, 10000),
-        },
-        { onConflict: 'url' }
-      )
-      .select()
-      .single();
-
-    if (dbError) {
-      console.error('Database upsert error:', dbError);
-      return NextResponse.json(
-        { error: `データベースへの保存に失敗しました: ${dbError.message}` },
-        { status: 500 }
-      );
+        if (!dbError && data) {
+          return NextResponse.json({
+            message: 'ブックマークが正常に解析・保存されました。',
+            bookmark: data as Bookmark,
+          });
+        }
+      } catch (dbErr) {
+        console.warn('Supabase upsert failed, continuing in demo mode:', dbErr);
+      }
     }
 
+    // 公開デモ用：DB書き込みを行わず、解析されたブックマークオブジェクトを直接返却
+    const demoBookmark: Bookmark = {
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      url: cleanUrl,
+      title: analysis.title,
+      summary: analysis.summary,
+      category: analysis.category,
+      tags: analysis.tags || [],
+      use_cases: analysis.useCases || [],
+      commercial_use: analysis.commercialUse,
+      raw_content: markdownContent.slice(0, 10000),
+    };
+
     return NextResponse.json({
-      message: 'ブックマークが正常に解析・保存されました。',
-      bookmark: data as Bookmark,
+      message: 'ブックマークが正常に解析されました（デモモード）。',
+      bookmark: demoBookmark,
     });
   } catch (error: unknown) {
     console.error('Unexpected error in POST /api/bookmarks:', error);
