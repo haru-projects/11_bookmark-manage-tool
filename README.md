@@ -8,7 +8,7 @@
 ## 📌 デモ & スクリーンショット
 
 ### 🔗 Demo URL
-- **Live Demo**: `[デモURL準備中（Vercelデプロイ後に記載予定）]`
+- **Live Demo**: [https://11-bookmark-manage-tool.vercel.app/](https://11-bookmark-manage-tool.vercel.app/)
 
 > [!NOTE]
 > **ポートフォリオ公開用のサンドボックス（お試しデモ）仕様について**  
